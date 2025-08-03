@@ -3,22 +3,37 @@ import {
   pgTable,
   text,
   timestamp,
-  boolean,
+  uuid,
   integer,
+  jsonb,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("users", {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  name: varchar({ length: 255 }).notNull(),
-  age: integer().notNull(),
-  email: varchar({ length: 255 }).notNull().unique(),
-  image: text("image"),
-  createdAt: timestamp("created_at")
-    .$defaultFn(() => new Date())
+  id: text("id").primaryKey(),
+  image: varchar(),
+  name: varchar({ length: 225 }).notNull(),
+  email: text().unique().notNull(),
+  emailVerified: boolean("email_verified")
+    .$defaultFn(() => false)
     .notNull(),
-  updatedAt: timestamp("updated_at")
-    .$defaultFn(() => new Date())
-    .notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const interview = pgTable("interview", {
+  id: uuid().defaultRandom().primaryKey(),
+  level: text().notNull(),
+  amount: integer().notNull(),
+  role: text().notNull(),
+  type: text().notNull(),
+  techstack: jsonb("techstack").notNull(),
+  questions: jsonb("questions"),
+  userId: text()
+    .notNull()
+    .references(() => user.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const session = pgTable("session", {
