@@ -20,6 +20,8 @@ export async function POST(request: Request) {
   const { level, amount, techstack, role, type, userId }: reqBody =
     await request.json();
 
+  console.log(request.json());
+
   try {
     const { text: questions } = await generateText({
       model: google("gemini-2.5-pro"),
