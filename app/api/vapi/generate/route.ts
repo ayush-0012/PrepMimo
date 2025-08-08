@@ -20,7 +20,14 @@ export async function POST(request: Request) {
   const { level, amount, techstack, role, type, userId }: reqBody =
     await request.json();
 
-  console.log(request.json());
+  console.log("interviewer made a req", {
+    level,
+    amount,
+    techstack,
+    role,
+    type,
+    userId,
+  });
 
   try {
     const { text: questions } = await generateText({
