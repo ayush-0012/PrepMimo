@@ -63,7 +63,14 @@ export default function Agent() {
         undefined,
         undefined,
         undefined,
-        process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID
+        process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID,
+        {
+          variableValues: {
+            userName: "ayush",
+            userId: "3JTjHRcgIwGrdnko5NMvnQ2ZnM1ALAcU", //hard coded userId for testing
+            // }
+          },
+        }
       );
       setIsConnected(true);
     } catch (error) {
