@@ -4,11 +4,14 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 // import { vapi } from "@/lib/vapi.sdk";
 import Vapi from "@vapi-ai/web";
+import { useRouter } from "next/navigation";
 
 export default function Agent() {
   // handling call logic with vapi here
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+
+  const router = useRouter();
 
   let vapi: any = null;
 
@@ -44,6 +47,9 @@ export default function Agent() {
     vapi.on("call-end", () => {
       console.log("call ended");
       setIsConnected(false);
+
+      //redirecting to dashboard after preparing the interview
+      router.push("/dashboard");
     });
 
     // Clean up event listeners on component unmount
@@ -66,7 +72,6 @@ export default function Agent() {
         process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID,
         {
           variableValues: {
-            userName: "ayush",
             userId: "3JTjHRcgIwGrdnko5NMvnQ2ZnM1ALAcU", //hard coded userId for testing
             // }
           },
