@@ -1,17 +1,7 @@
 "use client";
 
-import React from "react";
-import { useState } from "react";
-import {
-  Calendar,
-  Clock,
-  Users,
-  MoreHorizontal,
-  Play,
-  Edit,
-  Trash2,
-  Plus,
-} from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Calendar, Users, Play, Plus, Code, Layers } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -22,255 +12,388 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import axiosInstance from "@/lib/axiosInstance";
+import { authClient } from "@/lib/auth-client";
 
-// Mock data for existing interviews
-const mockInterviews = [
-  {
-    id: 1,
-    title: "Frontend Developer Interview",
-    description: "React, TypeScript, and JavaScript fundamentals",
-    status: "active",
-    createdAt: "2024-01-15",
-    duration: 45,
-    candidates: 12,
-    questions: 15,
-  },
-  {
-    id: 2,
-    title: "Backend Engineer Assessment",
-    description: "Node.js, databases, and system design",
-    status: "draft",
-    createdAt: "2024-01-14",
-    duration: 60,
-    candidates: 8,
-    questions: 20,
-  },
-  {
-    id: 3,
-    title: "Full Stack Developer",
-    description: "Complete web development skills evaluation",
-    status: "completed",
-    createdAt: "2024-01-10",
-    duration: 90,
-    candidates: 25,
-    questions: 30,
-  },
-];
+interface Interview {
+  id: string;
+  level: string;
+  amount: number;
+  type: string;
+  techstack: string[] | any;
+  questions: any;
+  status: string;
+  createdAt: string;
+  duration: number;
+  candidates: number;
+  title: string;
+  description: string;
+}
+
+// Loading skeleton component
+function InterviewCardSkeleton() {
+  return (
+    <Card className="bg-gray-900 border-gray-800 animate-pulse">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex-1 space-y-2">
+            <div className="h-5 bg-gray-700 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-700 rounded w-full"></div>
+          </div>
+          <div className="h-8 w-8 bg-gray-700 rounded"></div>
+        </div>
+        <div className="h-6 bg-gray-700 rounded w-20 mt-2"></div>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-4">
+        <div className="flex flex-wrap gap-1">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-5 bg-gray-700 rounded w-16"></div>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="flex items-center space-x-2">
+              <div className="h-4 w-4 bg-gray-700 rounded"></div>
+              <div className="h-4 bg-gray-700 rounded flex-1"></div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function Interviews() {
-  const [interviews, setInterviews] = useState(mockInterviews);
-
+  const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [interviewsLoading, setInterviewsLoading] = useState(true);
+  const { data: session, isPending, error } = authClient.useSession();
   const router = useRouter();
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-green-900 text-green-300 hover:bg-green-800";
+        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
       case "draft":
-        return "bg-yellow-900 text-yellow-300 hover:bg-yellow-800";
+        return "bg-amber-500/20 text-amber-400 border-amber-500/30";
       case "completed":
-        return "bg-blue-900 text-blue-300 hover:bg-blue-800";
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
       default:
-        return "bg-gray-800 text-gray-300 hover:bg-gray-700";
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
     }
   };
 
-  const handleCreateInterview = async () => {
-    // This would typically navigate to a create interview page or open a modal
-    console.log("Create new interview");
-
-    router.push("/interview");
+  const getLevelColor = (level: string) => {
+    switch (level.toLowerCase()) {
+      case "beginner":
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "intermediate":
+        return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+      case "advanced":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      default:
+        return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+    }
   };
 
-  const handleStartInterview = (id: number) => {
-    console.log("Start interview:", id);
+  const getTechStackArray = (techstack: any): string[] => {
+    if (Array.isArray(techstack)) return techstack;
+    if (typeof techstack === "string") {
+      try {
+        return JSON.parse(techstack);
+      } catch {
+        return techstack.split(",").map((tech: string) => tech.trim());
+      }
+    }
+    return [];
   };
 
-  const handleEditInterview = (id: number) => {
-    console.log("Edit interview:", id);
-  };
+  useEffect(() => {
+    async function fetchUserInterviews() {
+      if (!session?.user?.id) return;
 
-  const handleDeleteInterview = (id: number) => {
-    setInterviews(interviews.filter((interview) => interview.id !== id));
-  };
+      setInterviewsLoading(true);
+      try {
+        const response = await axiosInstance.get(
+          `/api/interview?userId=${session.user.id}`
+        );
+
+        console.log(response);
+        setInterviews(response.data.interviews);
+      } catch (err) {
+        console.error("Error fetching interviews:", err);
+      } finally {
+        setInterviewsLoading(false);
+      }
+    }
+
+    fetchUserInterviews();
+  }, [session]);
+
+  // Handle session states
+  if (isPending) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="text-red-500 text-xl">⚠️</div>
+          <p className="text-red-400">Failed to load session</p>
+          <Button onClick={() => window.location.reload()} variant="outline">
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="text-gray-400 text-6xl">🔒</div>
+          <p className="text-gray-300 text-xl">
+            Please log in to view your interviews
+          </p>
+          <Button
+            onClick={() => router.push("/auth")}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            Go to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <>
+    <div className="space-y-8">
       {/* Create Interview Section */}
-      <div className="mb-8">
-        <Card className="border border-gray-800 shadow-sm bg-gray-900">
-          <CardContent className="p-8">
-            <div className="flex items-center gap-8">
-              <div className="flex-1">
-                <h3 className="text-2xl font-semibold text-white mb-3">
+      <Card className="border-0 shadow-xl bg-gradient-to-br from-gray-900 to-gray-800 overflow-hidden">
+        <CardContent className="p-8">
+          <div className="flex items-center gap-8">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-blue-500/20 rounded-lg">
+                  <Plus className="h-6 w-6 text-blue-400" />
+                </div>
+                <h3 className="text-2xl font-semibold text-white">
                   Create New Interview
                 </h3>
-                <p className="text-gray-300 mb-6 text-lg">
-                  Set up a new AI interview with custom questions, time limits,
-                  and evaluation criteria
-                </p>
-                <Button
-                  onClick={handleCreateInterview}
-                  size="lg"
-                  className="px-8 bg-blue-600 hover:bg-blue-700"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Interview
-                </Button>
               </div>
-
-              <div className="flex-shrink-0">
-                <Image
-                  src="/public/react.svg"
-                  alt="AI Interview Robot"
-                  width={20}
-                  height={20}
-                  className="w-30 h-30 rounded-lg"
-                />
-              </div>
+              <p className="text-gray-300 mb-6 text-lg leading-relaxed">
+                Set up a new AI interview with custom questions, time limits,
+                and evaluation criteria to streamline your hiring process
+              </p>
+              <Button
+                onClick={() => router.push("/interview")}
+                size="lg"
+                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+              >
+                <Plus className="mr-2 h-5 w-5" />
+                Create Interview
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+
+            <div className="flex-shrink-0 relative">
+              <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-xl"></div>
+              <Image
+                src="/react.svg"
+                alt="AI Interview Robot"
+                width={120}
+                height={120}
+                className="rounded-lg relative z-10"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* All Interviews Section */}
       <div>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-white">Your Interviews</h2>
-          {/* <div className="text-sm text-gray-400">
-              {interviews.length} interview{interviews.length !== 1 ? "s" : ""}{" "}
-              total
-            </div> */}
+          <div>
+            <h2 className="text-3xl font-bold text-white mb-2">
+              Your Interviews
+            </h2>
+            <p className="text-gray-400">
+              Manage and track your interview sessions
+            </p>
+          </div>
+          {interviews.length > 0 && (
+            <Badge variant="outline" className="text-gray-300 border-gray-600">
+              {interviews.length} total
+            </Badge>
+          )}
         </div>
 
-        {interviews.length === 0 ? (
-          <Card className="bg-gray-900 border-gray-800">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Users className="h-12 w-12 text-gray-500 mb-4" />
-              <h3 className="text-lg font-semibold text-white mb-2">
+        {interviewsLoading ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {[...Array(8)].map((_, i) => (
+              <InterviewCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : interviews.length === 0 ? (
+          <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-0 shadow-xl">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-gray-500/20 rounded-full blur-xl"></div>
+                <Users className="h-16 w-16 text-gray-500 relative z-10" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">
                 No interviews yet
               </h3>
-              <p className="text-gray-400 text-center">
+              <p className="text-gray-400 text-center max-w-md leading-relaxed">
                 Create your first interview to get started with AI-powered
-                candidate assessment
+                candidate assessment and streamline your hiring workflow
               </p>
+              <Button
+                onClick={() => router.push("/interview")}
+                className="mt-6 bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create First Interview
+              </Button>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
             {interviews.map((interview) => (
               <Card
                 key={interview.id}
-                className="hover:shadow-lg transition-shadow bg-gray-900 border-gray-800"
+                className="group hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-gray-900 to-gray-800 border-0 shadow-xl hover:scale-[1.02] cursor-pointer overflow-hidden"
               >
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-3 relative">
+                  {/* Subtle gradient overlay */}
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
+
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <CardTitle className="text-lg mb-1 text-white">
+                      <CardTitle className="text-base text-white group-hover:text-blue-300 transition-colors mb-1">
                         {interview.title}
                       </CardTitle>
-                      <CardDescription className="text-sm text-gray-400">
+                      <CardDescription className="text-sm text-gray-400 line-clamp-2">
                         {interview.description}
                       </CardDescription>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-gray-800"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="bg-gray-800 border-gray-700"
-                      >
-                        <DropdownMenuItem
-                          onClick={() => handleStartInterview(interview.id)}
-                          className="text-gray-300 hover:text-white hover:bg-gray-700"
-                        >
-                          <Play className="mr-2 h-4 w-4" />
-                          Start Interview
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleEditInterview(interview.id)}
-                          className="text-gray-300 hover:text-white hover:bg-gray-700"
-                        >
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleDeleteInterview(interview.id)}
-                          className="text-red-400 hover:text-red-300 hover:bg-gray-700"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </div>
-                  <Badge
-                    className={getStatusColor(interview.status)}
-                    variant="secondary"
-                  >
-                    {interview.status.charAt(0).toUpperCase() +
-                      interview.status.slice(1)}
-                  </Badge>
                 </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="flex items-center text-gray-400">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {new Date(interview.createdAt).toLocaleDateString()}
-                    </div>
-                    <div className="flex items-center text-gray-400">
-                      <Clock className="mr-2 h-4 w-4" />
-                      {interview.duration} min
-                    </div>
-                    <div className="flex items-center text-gray-400">
-                      <Users className="mr-2 h-4 w-4" />
-                      {interview.candidates} candidates
-                    </div>
-                    <div className="flex items-center text-gray-400">
-                      <span className="mr-2">❓</span>
-                      {interview.questions} questions
-                    </div>
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <Button
-                      size="sm"
-                      className="flex-1 bg-blue-600 hover:bg-blue-700"
-                      onClick={() => handleStartInterview(interview.id)}
-                    >
-                      <Play className="mr-2 h-3 w-3" />
-                      Start
-                    </Button>
-                    <Button
-                      size="sm"
+
+                <CardContent className="pt-0 space-y-3">
+                  {/* Level and Type */}
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      className={`${getLevelColor(
+                        interview.level
+                      )} border text-xs font-medium`}
                       variant="outline"
-                      className="border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white bg-transparent"
-                      onClick={() => handleEditInterview(interview.id)}
                     >
-                      <Edit className="h-3 w-3" />
-                    </Button>
+                      <Layers className="mr-1 h-3 w-3" />
+                      {interview.level}
+                    </Badge>
+                    <Badge
+                      className="bg-indigo-500/20 text-indigo-400 border-indigo-500/30 border text-xs"
+                      variant="outline"
+                    >
+                      {interview.type}
+                    </Badge>
                   </div>
+
+                  {/* Tech Stack */}
+                  {interview.techstack && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-gray-300">
+                        <Code className="h-4 w-4" />
+                        <span className="text-sm font-medium">Tech Stack</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {getTechStackArray(interview.techstack)
+                          .slice(0, 3)
+                          .map((tech, index) => (
+                            <Badge
+                              key={index}
+                              className="bg-gray-700/50 text-gray-300 border-gray-600 text-xs hover:bg-gray-600/50 transition-colors"
+                              variant="outline"
+                            >
+                              {tech}
+                            </Badge>
+                          ))}
+                        {getTechStackArray(interview.techstack).length > 3 && (
+                          <Badge
+                            className="bg-gray-700/50 text-gray-400 border-gray-600 text-xs"
+                            variant="outline"
+                          >
+                            +{getTechStackArray(interview.techstack).length - 3}{" "}
+                            more
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="flex items-center text-gray-400 bg-gray-800/50 rounded-lg p-2 hover:bg-gray-800/70 transition-colors">
+                      <Calendar className="mr-2 h-3 w-3 text-blue-400" />
+                      <div>
+                        <p className="text-xs text-gray-500">Created</p>
+                        <p className="text-xs font-medium">
+                          {new Date(interview.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center text-gray-400 bg-gray-800/50 rounded-lg p-2 hover:bg-gray-800/70 transition-colors">
+                      <Users className="mr-2 h-3 w-3 text-purple-400" />
+                      <div>
+                        <p className="text-xs text-gray-500">Candidates</p>
+                        <p className="text-xs font-medium">
+                          {interview.candidates}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Questions Count */}
+                  <div className="flex items-center justify-between bg-gray-800/30 rounded-lg p-2">
+                    <div className="flex items-center text-gray-400">
+                      <span className="mr-2 text-orange-400 text-sm">❓</span>
+                      <span className="text-sm">Questions</span>
+                    </div>
+                    <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 text-xs">
+                      {interview.questions?.length || 0}
+                    </Badge>
+                  </div>
+
+                  {/* Action Button */}
+                  <Button
+                    onClick={() =>
+                      console.log("Start interview:", interview.id)
+                    }
+                    className="w-full bg-gradient-to-r from-blue-600/80 to-purple-600/80 hover:from-blue-600 hover:to-purple-600 transition-all duration-200 group-hover:shadow-lg"
+                    size="sm"
+                  >
+                    <Play className="mr-2 h-3 w-3" />
+                    Start Interview
+                  </Button>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
 
