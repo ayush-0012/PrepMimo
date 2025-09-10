@@ -162,7 +162,7 @@ function Interviews() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">
-          <div className="text-gray-400 text-6xl">🔒</div>
+          {/* <div className="text-gray-400 text-6xl">🔒</div> */}
           <p className="text-gray-300 text-xl">
             Please log in to view your interviews
           </p>
@@ -378,9 +378,10 @@ function Interviews() {
 
                   {/* Action Button */}
                   <Button
-                    onClick={() =>
-                      console.log("Start interview:", interview.id)
-                    }
+                    onClick={() => {
+                      console.log("Start interview:", interview.id);
+                      router.push(`/interview/${interview.id}`);
+                    }}
                     className="w-full bg-gradient-to-r from-blue-600/80 to-purple-600/80 hover:from-blue-600 hover:to-purple-600 transition-all duration-200 group-hover:shadow-lg"
                     size="sm"
                   >
