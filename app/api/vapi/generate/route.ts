@@ -1,6 +1,6 @@
 import db from "@/app/db/db";
 import { interview } from "@/app/db/schema";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 
 interface reqBody {
@@ -19,6 +19,10 @@ export function GET() {
 export async function POST(request: Request) {
   const { level, amount, techstack, role, type, userId }: reqBody =
     await request.json();
+
+  const google = createGoogleGenerativeAI({
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  });
 
   console.log("interviewer made a req", {
     level,
