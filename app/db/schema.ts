@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   boolean,
+  json,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("users", {
@@ -34,6 +35,99 @@ export const interview = pgTable("interview", {
     .references(() => user.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const feedback = pgTable("feedback", {
+  id: uuid().defaultRandom().primaryKey(),
+  interviewId: uuid()
+    .notNull()
+    .references(() => interview.id),
+  userId: text()
+    .notNull()
+    .references(() => user.id),
+
+  // Overall Performance Metrics
+  overallScore: integer("overall_score").notNull(), // 1-10 scale
+  overallRating: varchar("overall_rating", { length: 20 }).notNull(), // "excellent", "good", "average", "poor"
+
+  // Core Feedback Categories
+  technicalSkills: json("technical_skills").$type<{
+    score: number;
+    strengths: string[];
+    weaknesses: string[];
+    areasForImprovement: string[];
+    specificFeedback: string;
+  }>(),
+
+  communicationSkills: json("communication_skills").$type<{
+    score: number;
+    clarity: number;
+    articulation: number;
+    listeningSkills: number;
+    strengths: string[];
+    weaknesses: string[];
+    areasForImprovement: string[];
+    specificFeedback: string;
+  }>(),
+
+  problemSolving: json("problem_solving").$type<{
+    score: number;
+    analyticalThinking: number;
+    creativity: number;
+    approachToProblems: number;
+    strengths: string[];
+    weaknesses: string[];
+    areasForImprovement: string[];
+    specificFeedback: string;
+  }>(),
+
+  behavioralCompetencies: json("behavioral_competencies").$type<{
+    score: number;
+    leadership: number;
+    teamwork: number;
+    adaptability: number;
+    timeManagement: number;
+    conflictResolution: number;
+    strengths: string[];
+    weaknesses: string[];
+    areasForImprovement: string[];
+    specificFeedback: string;
+  }>(),
+
+  // Overall Summary
+  keyStrengths: json("key_strengths").$type<string[]>().notNull(),
+  keyWeaknesses: json("key_weaknesses").$type<string[]>().notNull(),
+  criticalAreasForImprovement: json("critical_areas_for_improvement")
+    .$type<string[]>()
+    .notNull(),
+
+  detailedFeedback: text("detailed_feedback"),
+  positiveHighlights: json("positive_highlights").$type<string[]>(),
+  developmentAreas: json("development_areas").$type<string[]>(),
+
+  recommendations: json("recommendations").$type<{
+    nextSteps: string[];
+    resourcesSuggested: string[];
+    skillsToFocus: string[];
+    trainingRecommendations: string[];
+  }>(),
+  responseQuality: json("response_quality").$type<{
+    completeness: number; // 1-10
+    relevance: number; // 1-10
+    depth: number; // 1-10
+    examples: number; // 1-10
+  }>(),
+  questionResponses: json("question_responses").$type<
+    Array<{
+      questionId: string;
+      questionText: string;
+      response: string;
+      score: number;
+      feedback: string;
+      strengths: string[];
+      improvements: string[];
+    }>
+  >(),
 });
 
 export const session = pgTable("session", {
