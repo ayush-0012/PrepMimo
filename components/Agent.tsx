@@ -2,95 +2,249 @@
 import { MessageCircle, Phone, PhoneOff } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
-// import { vapi } from "@/lib/vapi.sdk";
 import Vapi from "@vapi-ai/web";
 import { useRouter } from "next/navigation";
+import { interviewer } from "@/constants";
+import { generateFeedback } from "@/lib/actions/general.actions";
+import axiosInstance from "@/lib/axiosInstance";
 
-export default function Agent() {
+interface SavedMessages {
+  role: "user" | "system" | "assistant";
+  content: string;
+}
+
+enum CallStatus {
+  INACTIVE = "INACTIVE",
+  CONNECTING = "CONNECTING",
+  ACTIVE = "ACTIVE",
+  FINISHED = "FINISHED",
+}
+
+export default function Agent({ userId, type, interviewId, questions }) {
   // handling call logic with vapi here
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const [messages, setMessages] = useState<SavedMessages[]>([]);
+  const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
+  const [error, setError] = useState<string | null>(null);
+  const [vapi, setVapi] = useState<any>(null);
 
   const router = useRouter();
 
-  let vapi: any = null;
-
-  // import Vapi from "@vapi-ai/web";
-
-  if (!process.env.NEXT_PUBLIC_VAPI_API_KEY) {
-    console.log("vapi env is missing");
-    throw new Error("vapi env is missing");
-  }
-
-  vapi = new Vapi(process.env.NEXT_PUBLIC_VAPI_API_KEY);
-
-  console.log("public key", process.env.NEXT_PUBLIC_VAPI_API_KEY);
-
+  // Initialize Vapi instance
   useEffect(() => {
-    console.log("vapi", vapi);
+    if (!process.env.NEXT_PUBLIC_VAPI_API_KEY) {
+      console.error("VAPI API key is missing");
+      setError("VAPI configuration is missing");
+      return;
+    }
 
-    vapi.on("call-start", () => {
-      console.log("call started");
-      setIsConnected(true);
-    });
-    vapi.on("speech-start", () => {
-      console.log("Assistant started speaking");
-      setIsSpeaking(true);
-    });
-    vapi.on("speech-end", () => {
-      console.log("Assistant stopped speaking");
-      setIsSpeaking(false);
-    });
-    vapi.on("error", (error) => {
-      console.log("Vapi error:", error);
-    });
-    vapi.on("call-end", () => {
-      console.log("call ended");
-      setIsConnected(false);
-
-      //redirecting to dashboard after preparing the interview
-      router.push("/dashboard");
-    });
-
-    // Clean up event listeners on component unmount
-    return () => {
-      vapi.off("call-start", () => {});
-      vapi.off("speech-start", () => {});
-      vapi.off("speech-end", () => {});
-      vapi.off("error", () => {});
-      vapi.off("call-end", () => {});
+    // Dynamic import to avoid SSR issues
+    const initVapi = async () => {
+      try {
+        const vapiInstance = new Vapi(process.env.NEXT_PUBLIC_VAPI_API_KEY!);
+        setVapi(vapiInstance);
+        console.log("Vapi initialized successfully");
+      } catch (error) {
+        console.error("Failed to initialize Vapi:", error);
+        setError("Failed to initialize VAPI");
+      }
     };
-  }, []); // Empty dependency array means this runs once on mount
+
+    initVapi();
+  }, []);
+
+  // Set up event listeners
+  useEffect(() => {
+    if (!vapi) return;
+
+    console.log("Setting up Vapi event listeners");
+
+    const onCallStart = () => {
+      console.log("Call started");
+      setCallStatus(CallStatus.ACTIVE);
+      setIsConnected(true);
+    };
+
+    const onCallEnd = () => {
+      console.log("Call ended");
+      setCallStatus(CallStatus.FINISHED);
+      setIsConnected(false);
+    };
+
+    const onMessage = (message: any) => {
+      console.log("Received message:", message);
+
+      // Check for transcript messages
+      if (message.type === "transcript" && message.transcriptType === "final") {
+        const newMessage: SavedMessages = {
+          role: message.role,
+          content: message.transcript,
+        };
+        console.log("Adding transcript message:", newMessage);
+        setMessages((prev) => {
+          const updated = [...prev, newMessage];
+          console.log("Updated messages array:", updated);
+          return updated;
+        });
+      }
+
+      // Also check for other message types that might contain conversation data
+      if (
+        message.type === "conversation-update" ||
+        message.type === "function-call"
+      ) {
+        console.log("Other message type received:", message.type);
+        // Handle other message types if needed
+      }
+    };
+
+    const onSpeechStart = () => {
+      console.log("Speech started");
+      setIsSpeaking(true);
+    };
+
+    const onSpeechEnd = () => {
+      console.log("Speech ended");
+      setIsSpeaking(false);
+    };
+
+    const onError = (error: Error) => {
+      console.error("Vapi Error:", error);
+      setError(error.message);
+    };
+
+    // Add event listeners
+    vapi.on("call-start", onCallStart);
+    vapi.on("call-end", onCallEnd);
+    vapi.on("message", onMessage);
+    vapi.on("speech-start", onSpeechStart);
+    vapi.on("speech-end", onSpeechEnd);
+    vapi.on("error", onError);
+
+    // Clean up event listeners on component unmount or when vapi changes
+    return () => {
+      console.log("Cleaning up Vapi event listeners");
+      vapi.off("call-start", onCallStart);
+      vapi.off("call-end", onCallEnd);
+      vapi.off("message", onMessage);
+      vapi.off("speech-start", onSpeechStart);
+      vapi.off("speech-end", onSpeechEnd);
+      vapi.off("error", onError);
+    };
+  }, [vapi]);
+
+  // Handle call status changes
+  useEffect(() => {
+    console.log("Call status changed:", callStatus);
+    console.log("Current messages:", messages);
+
+    if (callStatus === CallStatus.FINISHED) {
+      if (type === "generate") {
+        router.push("/");
+      } else {
+        handleGenerateFeedback(messages);
+      }
+    }
+  }, [callStatus, type, router]); // removed messages from dependencies to avoid infinite loop
 
   async function handleStartCall() {
-    console.log("workflowId ", process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID);
+    if (!vapi) {
+      console.error("Vapi not initialized");
+      return;
+    }
+
+    console.log("Starting call...");
+    console.log("Workflow ID:", process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID);
+
     try {
-      await vapi.start(
-        undefined,
-        undefined,
-        undefined,
-        process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID,
-        {
-          variableValues: {
-            userId: "3JTjHRcgIwGrdnko5NMvnQ2ZnM1ALAcU", //hard coded userId for testing
-            // }
-          },
+      setCallStatus(CallStatus.CONNECTING);
+
+      if (type === "generate") {
+        await vapi.start(
+          undefined,
+          undefined,
+          undefined,
+          process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID,
+          {
+            variableValues: {
+              userId,
+            },
+          }
+        );
+      } else {
+        let formattedQuestions = "";
+
+        if (questions && Array.isArray(questions)) {
+          formattedQuestions = questions
+            .map((question) => `- ${question}`)
+            .join("\n");
         }
-      );
-      setIsConnected(true);
+
+        await vapi.start(interviewer, {
+          variableValues: {
+            questions: formattedQuestions,
+          },
+        });
+      }
+
+      console.log("Call started successfully");
     } catch (error) {
       console.error("Call start failed:", error);
+      setError("Failed to start call");
+      setCallStatus(CallStatus.INACTIVE);
       setIsConnected(false);
     }
   }
 
   const handleEndCall = () => {
-    if (vapi) {
-      vapi.stop();
-    }
-    // isConnected state will be updated by vapi.on("call-end")
-    setIsConnected(false);
+    if (!vapi) return;
+
+    console.log("Ending call...");
+    vapi.stop();
+
+    // Don't immediately redirect, let the call-end event handler do it
+    // The call status will be updated by the "call-end" event
   };
+
+  async function handleGenerateFeedback(messages: SavedMessages[]) {
+    console.log("Generating feedback with messages:", messages);
+
+    if (!userId) {
+      console.error("No userId provided");
+      return;
+    }
+
+    if (!messages || messages.length === 0) {
+      console.warn("No messages to generate feedback from");
+    }
+
+    try {
+      // const result = await generateFeedback(userId, interviewId, messages);
+      const response = await axiosInstance.post("/api/feeback", {
+        userId,
+        interviewId,
+        messages,
+      });
+      console.log("Feedback generation result:", response);
+
+      if (response) {
+        console.log("Feedback generated successfully");
+        router.push(`/interview/${interviewId}/feedback`);
+      } else {
+        console.error("Failed to generate feedback");
+        setError("Failed to generate feedback");
+        router.push("/");
+      }
+    } catch (error) {
+      console.error("Error generating feedback:", error);
+      setError("Error generating feedback");
+      router.push("/");
+    }
+  }
+
+  console.log("Current messages state:", messages);
+  console.log("Current call status:", callStatus);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 text-white relative overflow-hidden">
@@ -133,8 +287,8 @@ export default function Agent() {
               <div className="relative mb-4 md:mb-8">
                 <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl overflow-hidden shadow-lg ring-2 ring-purple-500/20">
                   <Image
-                    src="/js-mastery-profile.png"
-                    alt="JS Mastery profile"
+                    src="./public/next.svg"
+                    alt="next svg"
                     width={96}
                     height={96}
                     className="w-full h-full object-cover"
