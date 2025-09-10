@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       .from(interview)
       .where(eq(interview.userId, userId));
 
-    console.log(interviews);
+    // console.log(interviews);
 
     return Response.json({ success: true, interviews }, { status: 200 });
   } catch (error) {
