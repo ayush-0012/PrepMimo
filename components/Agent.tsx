@@ -221,10 +221,10 @@ export default function Agent({ userId, type, interviewId, questions }) {
 
     try {
       // const result = await generateFeedback(userId, interviewId, messages);
-      const response = await axiosInstance.post("/api/feeback", {
+      const response = await axiosInstance.post("/api/feedback", {
         userId,
         interviewId,
-        messages,
+        transcript : messages,
       });
       console.log("Feedback generation result:", response);
 
