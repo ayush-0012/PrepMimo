@@ -1,8 +1,13 @@
 // lib/axiosInstance.js
 import axios from "axios";
 
+const baseURL =
+  process.env.NODE_ENV === "production"
+    ? process.env.NEXT_PUBLIC_PROD_URL
+    : process.env.NEXT_PUBLIC_API_URL;
+
 const axiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_PROD_URL, // Use environment variables for base URL
+  baseURL,
   headers: {
     "Content-Type": "application/json",
   },
