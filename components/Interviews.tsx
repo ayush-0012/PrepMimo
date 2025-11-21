@@ -15,7 +15,6 @@ import {
 
 import { authClient } from "@/lib/auth-client";
 import axiosInstance from "@/lib/axiosInstance";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 interface Interview {
@@ -374,13 +373,25 @@ function Interviews() {
 
             <div className="flex-shrink-0 relative">
               <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-xl"></div>
-              <Image
-                src="/react.svg"
-                alt="AI Interview Robot"
-                width={120}
-                height={120}
-                className="rounded-lg relative z-10"
-              />
+              <div className="relative z-10 w-32 h-32 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center border border-blue-500/30">
+                <svg
+                  className="w-20 h-20 text-blue-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  />
+                  <circle cx="12" cy="9" r="1.5" fill="currentColor" />
+                  <circle cx="8" cy="9" r="1.5" fill="currentColor" />
+                  <circle cx="16" cy="9" r="1.5" fill="currentColor" />
+                </svg>
+              </div>
             </div>
           </div>
         </CardContent>
