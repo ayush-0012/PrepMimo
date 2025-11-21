@@ -1,12 +1,12 @@
 "use client";
-import { MessageCircle, Phone, PhoneOff } from "lucide-react";
-import Image from "next/image";
-import { useEffect, useState } from "react";
-import Vapi from "@vapi-ai/web";
-import { useRouter } from "next/navigation";
 import { interviewer } from "@/constants";
-import { generateFeedback } from "@/lib/actions/general.actions";
+import { authClient } from "@/lib/auth-client";
 import axiosInstance from "@/lib/axiosInstance";
+import Vapi from "@vapi-ai/web";
+import { MessageCircle, Phone, PhoneOff, User } from "lucide-react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface SavedMessages {
   role: "user" | "system" | "assistant";
@@ -21,6 +21,9 @@ enum CallStatus {
 }
 
 export default function Agent({ userId, type, interviewId, questions }) {
+  // Get user session for profile data
+  const { data: session } = authClient.useSession();
+
   // handling call logic with vapi here
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
@@ -30,6 +33,16 @@ export default function Agent({ userId, type, interviewId, questions }) {
   const [vapi, setVapi] = useState<any>(null);
 
   const router = useRouter();
+
+  // Memoize user data
+  const userProfile = useMemo(() => {
+    if (!session?.user) return null;
+    return {
+      name: session.user.name || "User",
+      image: session.user.image || null,
+      email: session.user.email || "",
+    };
+  }, [session?.user]);
 
   // Initialize Vapi instance
   useEffect(() => {
@@ -54,65 +67,66 @@ export default function Agent({ userId, type, interviewId, questions }) {
     initVapi();
   }, []);
 
+  // Memoize event handlers to prevent recreation
+  const onCallStart = useCallback(() => {
+    console.log("Call started");
+    setCallStatus(CallStatus.ACTIVE);
+    setIsConnected(true);
+  }, []);
+
+  const onCallEnd = useCallback(() => {
+    console.log("Call ended");
+    setCallStatus(CallStatus.FINISHED);
+    setIsConnected(false);
+  }, []);
+
+  const onMessage = useCallback((message: any) => {
+    console.log("Received message:", message);
+
+    // Check for transcript messages
+    if (message.type === "transcript" && message.transcriptType === "final") {
+      const newMessage: SavedMessages = {
+        role: message.role,
+        content: message.transcript,
+      };
+      console.log("Adding transcript message:", newMessage);
+      setMessages((prev) => {
+        const updated = [...prev, newMessage];
+        console.log("Updated messages array:", updated);
+        return updated;
+      });
+    }
+
+    // Also check for other message types that might contain conversation data
+    if (
+      message.type === "conversation-update" ||
+      message.type === "function-call"
+    ) {
+      console.log("Other message type received:", message.type);
+      // Handle other message types if needed
+    }
+  }, []);
+
+  const onSpeechStart = useCallback(() => {
+    console.log("Speech started");
+    setIsSpeaking(true);
+  }, []);
+
+  const onSpeechEnd = useCallback(() => {
+    console.log("Speech ended");
+    setIsSpeaking(false);
+  }, []);
+
+  const onError = useCallback((error: Error) => {
+    console.error("Vapi Error:", error);
+    setError(error.message);
+  }, []);
+
   // Set up event listeners
   useEffect(() => {
     if (!vapi) return;
 
     console.log("Setting up Vapi event listeners");
-
-    const onCallStart = () => {
-      console.log("Call started");
-      setCallStatus(CallStatus.ACTIVE);
-      setIsConnected(true);
-    };
-
-    const onCallEnd = () => {
-      console.log("Call ended");
-      setCallStatus(CallStatus.FINISHED);
-      setIsConnected(false);
-    };
-
-    const onMessage = (message: any) => {
-      console.log("Received message:", message);
-
-      // Check for transcript messages
-      if (message.type === "transcript" && message.transcriptType === "final") {
-        const newMessage: SavedMessages = {
-          role: message.role,
-          content: message.transcript,
-        };
-        console.log("Adding transcript message:", newMessage);
-        setMessages((prev) => {
-          const updated = [...prev, newMessage];
-          console.log("Updated messages array:", updated);
-          return updated;
-        });
-      }
-
-      // Also check for other message types that might contain conversation data
-      if (
-        message.type === "conversation-update" ||
-        message.type === "function-call"
-      ) {
-        console.log("Other message type received:", message.type);
-        // Handle other message types if needed
-      }
-    };
-
-    const onSpeechStart = () => {
-      console.log("Speech started");
-      setIsSpeaking(true);
-    };
-
-    const onSpeechEnd = () => {
-      console.log("Speech ended");
-      setIsSpeaking(false);
-    };
-
-    const onError = (error: Error) => {
-      console.error("Vapi Error:", error);
-      setError(error.message);
-    };
 
     // Add event listeners
     vapi.on("call-start", onCallStart);
@@ -132,7 +146,54 @@ export default function Agent({ userId, type, interviewId, questions }) {
       vapi.off("speech-end", onSpeechEnd);
       vapi.off("error", onError);
     };
-  }, [vapi]);
+  }, [
+    vapi,
+    onCallStart,
+    onCallEnd,
+    onMessage,
+    onSpeechStart,
+    onSpeechEnd,
+    onError,
+  ]);
+
+  // Memoize feedback generation function
+  const handleGenerateFeedback = useCallback(
+    async (messages: SavedMessages[]) => {
+      console.log("Generating feedback with messages:", messages);
+
+      if (!userId) {
+        console.error("No userId provided");
+        return;
+      }
+
+      if (!messages || messages.length === 0) {
+        console.warn("No messages to generate feedback from");
+      }
+
+      try {
+        const response = await axiosInstance.post("/api/feedback", {
+          userId,
+          interviewId,
+          transcript: messages,
+        });
+        console.log("Feedback generation result:", response);
+
+        if (response) {
+          console.log("Feedback generated successfully");
+          router.push(`/interview/${interviewId}/feedback`);
+        } else {
+          console.error("Failed to generate feedback");
+          setError("Failed to generate feedback");
+          router.push("/");
+        }
+      } catch (error) {
+        console.error("Error generating feedback:", error);
+        setError("Error generating feedback");
+        router.push("/");
+      }
+    },
+    [userId, interviewId, router]
+  );
 
   // Handle call status changes
   useEffect(() => {
@@ -146,9 +207,9 @@ export default function Agent({ userId, type, interviewId, questions }) {
         handleGenerateFeedback(messages);
       }
     }
-  }, [callStatus, type, router]); // removed messages from dependencies to avoid infinite loop
+  }, [callStatus, type, router, handleGenerateFeedback, messages]);
 
-  async function handleStartCall() {
+  const handleStartCall = useCallback(async () => {
     if (!vapi) {
       console.error("Vapi not initialized");
       return;
@@ -195,9 +256,9 @@ export default function Agent({ userId, type, interviewId, questions }) {
       setCallStatus(CallStatus.INACTIVE);
       setIsConnected(false);
     }
-  }
+  }, [vapi, type, userId, questions]);
 
-  const handleEndCall = () => {
+  const handleEndCall = useCallback(() => {
     if (!vapi) return;
 
     console.log("Ending call...");
@@ -205,43 +266,7 @@ export default function Agent({ userId, type, interviewId, questions }) {
 
     // Don't immediately redirect, let the call-end event handler do it
     // The call status will be updated by the "call-end" event
-  };
-
-  async function handleGenerateFeedback(messages: SavedMessages[]) {
-    console.log("Generating feedback with messages:", messages);
-
-    if (!userId) {
-      console.error("No userId provided");
-      return;
-    }
-
-    if (!messages || messages.length === 0) {
-      console.warn("No messages to generate feedback from");
-    }
-
-    try {
-      // const result = await generateFeedback(userId, interviewId, messages);
-      const response = await axiosInstance.post("/api/feedback", {
-        userId,
-        interviewId,
-        transcript : messages,
-      });
-      console.log("Feedback generation result:", response);
-
-      if (response) {
-        console.log("Feedback generated successfully");
-        router.push(`/interview/${interviewId}/feedback`);
-      } else {
-        console.error("Failed to generate feedback");
-        setError("Failed to generate feedback");
-        router.push("/");
-      }
-    } catch (error) {
-      console.error("Error generating feedback:", error);
-      setError("Error generating feedback");
-      router.push("/");
-    }
-  }
+  }, [vapi]);
 
   console.log("Current messages state:", messages);
   console.log("Current call status:", callStatus);
@@ -264,7 +289,6 @@ export default function Agent({ userId, type, interviewId, questions }) {
               <div className="w-16 h-0.5 bg-gradient-to-r from-purple-500 to-blue-500 mt-1" />
             </div>
           </div>
-          {/* Removed the Plus button as it was not in the original design and not requested */}
         </div>
         {/* Enhanced Cards container */}
         <div className="grid grid-cols-2 md:grid-cols-2 gap-4 md:gap-8 mb-8 md:mb-12">
@@ -281,22 +305,28 @@ export default function Agent({ userId, type, interviewId, questions }) {
               </h2>
             </div>
           </div>
-          {/* JS Mastery Card */}
+          {/* User Profile Card */}
           <div className="group relative">
             <div className="relative bg-gradient-to-br from-indigo-900/40 via-purple-900/30 to-blue-900/40 border border-purple-500/20 rounded-3xl p-4 md:p-10 flex flex-col items-center justify-center min-h-[200px] md:min-h-[320px] hover:border-purple-400/30 transition-all duration-300 group-hover:transform group-hover:scale-[1.02] shadow-xl">
               <div className="relative mb-4 md:mb-8">
-                <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl overflow-hidden shadow-lg ring-2 ring-purple-500/20">
-                  <Image
-                    src="./public/next.svg"
-                    alt="next svg"
-                    width={96}
-                    height={96}
-                    className="w-full h-full object-cover"
-                  />
+                <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl overflow-hidden shadow-lg ring-2 ring-purple-500/20 bg-gradient-to-br from-blue-500 to-purple-600">
+                  {userProfile?.image ? (
+                    <Image
+                      src={userProfile.image}
+                      alt={userProfile.name}
+                      width={96}
+                      height={96}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
+                      <User className="w-8 h-8 md:w-12 md:h-12 text-white" />
+                    </div>
+                  )}
                 </div>
               </div>
               <h2 className="text-lg md:text-2xl font-semibold mb-2 bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
-                You
+                {userProfile?.name || "You"}
               </h2>
             </div>
           </div>
@@ -310,17 +340,51 @@ export default function Agent({ userId, type, interviewId, questions }) {
                 : "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 hover:shadow-green-500/25"
             }`}
             onClick={isConnected ? handleEndCall : handleStartCall}
+            disabled={callStatus === CallStatus.CONNECTING}
           >
             <div className="relative flex items-center gap-3">
-              {isConnected ? (
-                <PhoneOff className="w-5 h-5" />
+              {callStatus === CallStatus.CONNECTING ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Connecting...</span>
+                </>
+              ) : isConnected ? (
+                <>
+                  <PhoneOff className="w-5 h-5" />
+                  <span>End Call</span>
+                </>
               ) : (
-                <Phone className="w-5 h-5" />
+                <>
+                  <Phone className="w-5 h-5" />
+                  <span>Call</span>
+                </>
               )}
-              <span>{isConnected ? "End Call" : "Call"}</span>
             </div>
           </button>
         </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="mt-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-center">
+            <p className="text-red-400">{error}</p>
+          </div>
+        )}
+
+        {/* Speaking Indicator */}
+        {isSpeaking && (
+          <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-purple-600/90 backdrop-blur-sm rounded-full shadow-lg">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1">
+                <div className="w-1 h-4 bg-white rounded-full animate-pulse" />
+                <div className="w-1 h-4 bg-white rounded-full animate-pulse delay-75" />
+                <div className="w-1 h-4 bg-white rounded-full animate-pulse delay-150" />
+              </div>
+              <span className="text-white text-sm font-medium">
+                Speaking...
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
