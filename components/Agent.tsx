@@ -4,7 +4,6 @@ import { authClient } from "@/lib/auth-client";
 import axiosInstance from "@/lib/axiosInstance";
 import Vapi from "@vapi-ai/web";
 import { MessageCircle, Phone, PhoneOff, User } from "lucide-react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -311,22 +310,29 @@ export default function Agent({ userId, type, interviewId, questions }) {
               <div className="relative mb-4 md:mb-8">
                 <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl overflow-hidden shadow-lg ring-2 ring-purple-500/20 bg-gradient-to-br from-blue-500 to-purple-600">
                   {userProfile?.image ? (
-                    <Image
+                    <img
                       src={userProfile.image}
-                      alt={userProfile.name}
-                      width={96}
-                      height={96}
+                      alt="User profile"
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        e.currentTarget.nextElementSibling?.classList.remove(
+                          "hidden"
+                        );
+                      }}
                     />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
-                      <User className="w-8 h-8 md:w-12 md:h-12 text-white" />
-                    </div>
-                  )}
+                  ) : null}
+                  <div
+                    className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 ${
+                      userProfile?.image ? "hidden" : ""
+                    }`}
+                  >
+                    <User className="w-8 h-8 md:w-12 md:h-12 text-white" />
+                  </div>
                 </div>
               </div>
               <h2 className="text-lg md:text-2xl font-semibold mb-2 bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
-                {userProfile?.name || "You"}
+                You
               </h2>
             </div>
           </div>
