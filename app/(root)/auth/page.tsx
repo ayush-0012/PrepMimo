@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { authClient } from "@/lib/auth-client";
-import { Github, Chrome } from "lucide-react";
+import { Github } from "lucide-react";
 
 export default function AuthPage() {
   // github auth handler
@@ -47,11 +47,11 @@ export default function AuthPage() {
             <Github className="mr-2 h-5 w-5" />
             Sign in with GitHub
           </Button>
-          <Button className="w-full bg-gradient-to-br from-gray-800 via-gray-900 to-black text-white shadow-lg hover:from-gray-700 hover:via-gray-800 hover:to-gray-900 transition-all duration-200 relative overflow-hidden group">
+          {/* <Button className="w-full bg-gradient-to-br from-gray-800 via-gray-900 to-black text-white shadow-lg hover:from-gray-700 hover:via-gray-800 hover:to-gray-900 transition-all duration-200 relative overflow-hidden group">
             <span className="absolute inset-0 bg-gradient-to-br from-blue-600 via-cyan-500 to-green-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300 blur-sm"></span>
             <Chrome className="mr-2 h-5 w-5" />
             Sign in with Google
-          </Button>
+          </Button> */}
         </CardContent>
       </Card>
     </div>
